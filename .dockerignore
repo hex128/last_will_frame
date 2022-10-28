@@ -1,0 +1,4 @@
+.env
+.idea/
+*.tar
+elevator_cam_bot
