@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"syscall"
 	"time"
 )
 
@@ -35,10 +34,9 @@ var bot *tgbotapi.BotAPI
 func capture(rtspUrl string, snapshotPath string, streamName string) {
 	for {
 		prevSt, prevStErr := os.Stat(snapshotPath)
-		ctimePrev := time.Unix(0, 0)
+		prevMtime := time.Unix(0, 0)
 		if prevStErr == nil {
-			prevStat := prevSt.Sys().(*syscall.Stat_t)
-			ctimePrev = time.Unix(int64(prevStat.Ctimespec.Sec), int64(prevStat.Ctimespec.Nsec))
+			prevMtime = prevSt.ModTime()
 		}
 
 		cmd := exec.Command(
@@ -50,13 +48,12 @@ func capture(rtspUrl string, snapshotPath string, streamName string) {
 		_ = cmd.Run()
 
 		lastSt, lastStErr := os.Stat(snapshotPath)
-		ctimeLast := time.Unix(0, 0)
+		lastMtime := time.Unix(0, 0)
 		if lastStErr == nil {
-			lastStat := lastSt.Sys().(*syscall.Stat_t)
-			ctimeLast = time.Unix(int64(lastStat.Ctimespec.Sec), int64(lastStat.Ctimespec.Nsec))
+			lastMtime = lastSt.ModTime()
 		}
 		log.Println(fmt.Sprintf("FFmpeg for %s has failed", streamName))
-		if ctimeLast != ctimePrev {
+		if prevMtime != lastMtime {
 			SendSnap(snapshotPath)
 		}
 	}
