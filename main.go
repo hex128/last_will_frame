@@ -6,6 +6,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
+	"syscall"
+	"time"
 )
 
 func getEnvDefault(key, fallback string) string {
@@ -25,35 +28,47 @@ var rtspUrl = getEnvDefault("RTSP_URL", "/Streaming/Channels/101")
 var ffmpegBin = getEnvDefault("FFMPEG_BIN", "/usr/bin/ffmpeg")
 var snapshotDir = getEnvDefault("SNAPSHOT_DIR", "/dev/shm/elevator_snapshots")
 
+var numericChatId, _ = strconv.ParseInt(chatId, 10, 64)
+
 var bot *tgbotapi.BotAPI
 
 func capture(rtspUrl string, snapshotPath string, streamName string) {
 	for {
+		prevSt, prevStErr := os.Stat(snapshotPath)
+		ctimePrev := time.Unix(0, 0)
+		if prevStErr == nil {
+			prevStat := prevSt.Sys().(*syscall.Stat_t)
+			ctimePrev = time.Unix(int64(prevStat.Ctimespec.Sec), int64(prevStat.Ctimespec.Nsec))
+		}
+
 		cmd := exec.Command(
 			ffmpegBin,
 			"-y", "-timeout", "1000000", "-re", "-rtsp_transport", "tcp", "-i",
 			rtspUrl, "-an", "-vf", "select='eq(pict_type,PICT_TYPE_I)'",
 			"-vsync", "vfr", "-q:v", "23", "-update", "1", snapshotPath,
 		)
-		err := cmd.Run()
-		if err != nil {
-			log.Println(fmt.Sprintf("FFmpeg for %s failed with: %s", streamName, err))
-			//alert(streamName)
-			continue
+		_ = cmd.Run()
+
+		lastSt, lastStErr := os.Stat(snapshotPath)
+		ctimeLast := time.Unix(0, 0)
+		if lastStErr == nil {
+			lastStat := lastSt.Sys().(*syscall.Stat_t)
+			ctimeLast = time.Unix(int64(lastStat.Ctimespec.Sec), int64(lastStat.Ctimespec.Nsec))
+		}
+		log.Println(fmt.Sprintf("FFmpeg for %s has failed", streamName))
+		if ctimeLast != ctimePrev {
+			SendSnap(snapshotPath)
 		}
 	}
 }
 
-//func alert(streamName string) {
-//	numericChatId, err := strconv.ParseInt(chatId, 10, 64)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	msg := tgbotapi.NewMessage(numericChatId, fmt.Sprintf("Stream %s has failed", streamName))
-//	if _, err := bot.Send(msg); err != nil {
-//		log.Println(err)
-//	}
-//}
+func SendSnap(snapshotPath string) {
+	photoFileBytes := tgbotapi.FilePath(snapshotPath)
+	msg := tgbotapi.NewPhoto(numericChatId, photoFileBytes)
+	if _, err := bot.Send(msg); err != nil {
+		log.Println(err)
+	}
+}
 
 func main() {
 	var err error
@@ -88,7 +103,7 @@ func main() {
 				fmt.Sprintf("Got message from chat %d from %s", update.Message.Chat.ID, update.Message.From),
 			)
 
-			if fmt.Sprintf("%d", update.Message.Chat.ID) != chatId {
+			if update.Message.Chat.ID != numericChatId {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 Access denied")
 				if _, err := bot.Send(msg); err != nil {
 					log.Println(err)
@@ -102,17 +117,9 @@ func main() {
 
 			switch update.Message.Command() {
 			case "snap1":
-				photoFileBytes := tgbotapi.FilePath(fmt.Sprintf("%s/%s", snapshotDir, "snap1.jpg"))
-				msg := tgbotapi.NewPhoto(update.Message.Chat.ID, photoFileBytes)
-				if _, err := bot.Send(msg); err != nil {
-					log.Println(err)
-				}
+				SendSnap(fmt.Sprintf("%s/%s", snapshotDir, "snap1.jpg"))
 			case "snap2":
-				photoFileBytes := tgbotapi.FilePath(fmt.Sprintf("%s/%s", snapshotDir, "snap2.jpg"))
-				msg := tgbotapi.NewPhoto(update.Message.Chat.ID, photoFileBytes)
-				if _, err := bot.Send(msg); err != nil {
-					log.Println(err)
-				}
+				SendSnap(fmt.Sprintf("%s/%s", snapshotDir, "snap2.jpg"))
 			default:
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 Unsupported command")
 				if _, err := bot.Send(msg); err != nil {
