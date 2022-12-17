@@ -45,14 +45,17 @@ func capture(rtspUrl string, snapshotPath string, streamName string) {
 			rtspUrl, "-an", "-vf", "select='eq(pict_type,PICT_TYPE_I)'",
 			"-vsync", "vfr", "-q:v", "23", "-update", "1", snapshotPath,
 		)
-		_ = cmd.Run()
+		err := cmd.Run()
+		if err != nil {
+			log.Println(fmt.Sprintf("FFmpeg for %s has failed with: %s", streamName, err))
+		}
 
 		lastSt, lastStErr := os.Stat(snapshotPath)
 		lastMtime := time.Unix(0, 0)
 		if lastStErr == nil {
 			lastMtime = lastSt.ModTime()
 		}
-		log.Println(fmt.Sprintf("FFmpeg for %s has failed", streamName))
+
 		if prevMtime != lastMtime {
 			SendSnap(snapshotPath)
 		}
