@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,8 +21,7 @@ func getEnvDefault(key, fallback string) string {
 
 var telegramToken = os.Getenv("TELEGRAM_TOKEN")
 var chatId = os.Getenv("CHAT_ID")
-var cam1Address = os.Getenv("E1_ADDRESS")
-var cam2Address = os.Getenv("E2_ADDRESS")
+var cameraAddresses = os.Getenv("RTSP_ADDRESSES")
 var rtspUsername = os.Getenv("RTSP_USERNAME")
 var rtspPassword = os.Getenv("RTSP_PASSWORD")
 var rtspUrl = getEnvDefault("RTSP_URL", "/Streaming/Channels/101")
@@ -32,30 +33,32 @@ var numericChatId, _ = strconv.ParseInt(chatId, 10, 64)
 var bot *tgbotapi.BotAPI
 
 func capture(rtspUrl string, snapshotPath string, streamName string) {
-	var initial bool = true
+	var initial = true
 	for {
 		prevSt, prevStErr := os.Stat(snapshotPath)
 		prevMtime := time.Unix(0, 0)
 		if prevStErr == nil {
 			prevMtime = prevSt.ModTime()
 		}
-
-		cmd := exec.Command(
-			ffmpegBin,
-			"-y", "-timeout", "1000000", "-re", "-rtsp_transport", "tcp", "-i",
-			rtspUrl, "-an", "-vf", "select='eq(pict_type,PICT_TYPE_I)'",
-			"-vsync", "vfr", "-q:v", "23", "-update", "1", snapshotPath,
-		)
-		_ = cmd.Run()
-
-		lastSt, lastStErr := os.Stat(snapshotPath)
 		lastMtime := time.Unix(0, 0)
-		if lastStErr == nil {
-			lastMtime = lastSt.ModTime()
+
+		for range [3]struct{}{} {
+			cmd := exec.Command(
+				ffmpegBin,
+				"-y", "-timeout", "1000000", "-re", "-rtsp_transport", "tcp", "-i",
+				rtspUrl, "-an", "-vf", "select='eq(pict_type,PICT_TYPE_I)'",
+				"-vsync", "vfr", "-q:v", "23", "-update", "1", snapshotPath,
+			)
+			_ = cmd.Run()
+			lastSt, lastStErr := os.Stat(snapshotPath)
+			if lastStErr == nil {
+				lastMtime = lastSt.ModTime()
+			}
+			if prevMtime != lastMtime || initial {
+				log.Println(fmt.Sprintf("FFmpeg for %s has failed", streamName))
+			}
 		}
-		if prevMtime != lastMtime || initial {
-			log.Println(fmt.Sprintf("FFmpeg for %s has failed", streamName))
-		}
+
 		if prevMtime != lastMtime {
 			SendSnap(snapshotPath)
 		}
@@ -64,10 +67,17 @@ func capture(rtspUrl string, snapshotPath string, streamName string) {
 }
 
 func SendSnap(snapshotPath string) {
-	photoFileBytes := tgbotapi.FilePath(snapshotPath)
-	msg := tgbotapi.NewPhoto(numericChatId, photoFileBytes)
-	if _, err := bot.Send(msg); err != nil {
-		log.Println(err)
+	if _, err := os.Stat(snapshotPath); err == nil {
+		photoFileBytes := tgbotapi.FilePath(snapshotPath)
+		msg := tgbotapi.NewPhoto(numericChatId, photoFileBytes)
+		if _, err := bot.Send(msg); err != nil {
+			log.Println(err)
+		}
+	} else {
+		msg := tgbotapi.NewMessage(numericChatId, "🚫 Snapshot doesn't exist")
+		if _, err := bot.Send(msg); err != nil {
+			log.Println(err)
+		}
 	}
 }
 
@@ -77,16 +87,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go capture(
-		fmt.Sprintf("rtsp://%s:%s@%s%s", rtspUsername, rtspPassword, cam1Address, rtspUrl),
-		fmt.Sprintf("%s/%s", snapshotDir, "snap1.jpg"),
-		"cam1",
-	)
-	go capture(
-		fmt.Sprintf("rtsp://%s:%s@%s%s", rtspUsername, rtspPassword, cam2Address, rtspUrl),
-		fmt.Sprintf("%s/%s", snapshotDir, "snap2.jpg"),
-		"cam2",
-	)
+	addresses := strings.Split(cameraAddresses, ",")
+	for i := 0; i < len(addresses); i++ {
+		go capture(
+			fmt.Sprintf("rtsp://%s:%s@%s%s", rtspUsername, rtspPassword, addresses[i], rtspUrl),
+			fmt.Sprintf("%s/snap%d.jpg", snapshotDir, i),
+			fmt.Sprintf("cam%d", i),
+		)
+	}
 	bot, err = tgbotapi.NewBotAPI(telegramToken)
 	if err != nil {
 		log.Panic(err)
@@ -116,12 +124,9 @@ func main() {
 				continue
 			}
 
-			switch update.Message.Command() {
-			case "snap1":
-				SendSnap(fmt.Sprintf("%s/%s", snapshotDir, "snap1.jpg"))
-			case "snap2":
-				SendSnap(fmt.Sprintf("%s/%s", snapshotDir, "snap2.jpg"))
-			default:
+			if match, err := regexp.MatchString("^snap\\d$", update.Message.Command()); err == nil && match {
+				SendSnap(fmt.Sprintf("%s/%s.jpg", snapshotDir, update.Message.Command()))
+			} else {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 Unsupported command")
 				if _, err := bot.Send(msg); err != nil {
 					log.Println(err)
