@@ -22,6 +22,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to registry.rmrf.co
+        uses: docker/login-action@v2
+        with:
+          registry: registry.rmrf.co
+          username: ${{ secrets.RMRF_CO_REGISTRY_USERNAME }}
+          password: ${{ secrets.RMRF_CO_REGISTRY_PASSWORD }}
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -29,5 +35,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            andrewshulgin/elevator_cam_bot:latest
             ghcr.io/andrewshulgin/elevator_cam_bot:latest
+            registry.rmrf.co/elevator_cam_bot:latest
