@@ -81,10 +81,12 @@ func MaintainHistory(streamName string, interval int64) {
 	for {
 		_, err := os.Stat(snapshotPath)
 		if os.IsNotExist(err) {
-			log.Println("File does not exist:", snapshotPath)
+			//log.Println("File does not exist:", snapshotPath)
+			time.Sleep(time.Duration(interval) * time.Millisecond)
 			continue
 		} else if err != nil {
 			log.Println("Unable to obtain file info", err)
+			time.Sleep(time.Duration(interval) * time.Millisecond)
 			continue
 		}
 
@@ -101,18 +103,21 @@ func MaintainHistory(streamName string, interval int64) {
 		input, err := ioutil.ReadFile(snapshotPath)
 		if err != nil {
 			log.Println("Unable to read file", err)
+			time.Sleep(time.Duration(interval) * time.Millisecond)
 			continue
 		}
 
 		err = ioutil.WriteFile(snapshotPaths[0], input, 0644)
 		if err != nil {
 			log.Println("Unable to write file", err)
+			time.Sleep(time.Duration(interval) * time.Millisecond)
 			continue
 		}
 
 		files, err := ioutil.ReadDir(snapshotDir)
 		if err != nil {
 			log.Println("Unable to read directory", err)
+			time.Sleep(time.Duration(interval) * time.Millisecond)
 			continue
 		}
 
@@ -137,6 +142,7 @@ func MaintainHistory(streamName string, interval int64) {
 			err = os.Remove(filepath.Join(snapshotDir, fileName))
 			if err != nil {
 				log.Println("Unable to remove unwanted file", err)
+				time.Sleep(time.Duration(interval) * time.Millisecond)
 				continue
 			}
 		}
