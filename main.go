@@ -28,7 +28,7 @@ var rtspUsername = os.Getenv("RTSP_USERNAME")
 var rtspPassword = os.Getenv("RTSP_PASSWORD")
 var rtspUrl = getEnvDefault("RTSP_URL", "/")
 var ffmpegBin = getEnvDefault("FFMPEG_BIN", "/usr/bin/ffmpeg")
-var snapshotDir = getEnvDefault("SNAPSHOT_DIR", "/dev/shm/elevator_snapshots")
+var snapshotDir = getEnvDefault("SNAPSHOT_DIR", "/dev/shm/last_will_frame_snapshots")
 var snapshotSequence, _ = strconv.ParseInt(getEnvDefault("SNAPSHOT_SEQUENCE", "3"), 10, 8)
 var snapshotSequenceInterval, _ = strconv.ParseInt(getEnvDefault("SNAPSHOT_SEQUENCE_INTERVAL", "2000"), 10, 64)
 
