@@ -35,5 +35,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/andrewshulgin/elevator_cam_bot:latest
-            registry.rmrf.co/elevator_cam_bot:latest
+            ghcr.io/hex128/last_will_frame:latest
+            registry.rmrf.co/last_will_frame:latest
