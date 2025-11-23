@@ -22,12 +22,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Login to registry.rmrf.co
+      - name: Login to registry.hex128.io
         uses: docker/login-action@v2
         with:
-          registry: registry.rmrf.co
-          username: ${{ secrets.RMRF_CO_REGISTRY_USERNAME }}
-          password: ${{ secrets.RMRF_CO_REGISTRY_PASSWORD }}
+          registry: registry.hex128.io
+          username: ${{ secrets.HEX128_IO_REGISTRY_USERNAME }}
+          password: ${{ secrets.HEX128_IO_REGISTRY_PASSWORD }}
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -36,4 +36,4 @@ jobs:
           push: true
           tags: |
             ghcr.io/hex128/last_will_frame:latest
-            registry.rmrf.co/last_will_frame:latest
+            registry.hex128.io/last_will_frame:latest
